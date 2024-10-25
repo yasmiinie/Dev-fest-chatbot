@@ -2,44 +2,35 @@ import cohere
 import os
 import requests
 from dotenv import load_dotenv
-from langchain_community.embeddings import HuggingFaceEmbeddings  # Updated import
-from langchain_community.vectorstores import FAISS  # Updated import
-from langchain_community.document_loaders import TextLoader  # Updated import
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from sentence_transformers import SentenceTransformer
+import faiss
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from langchain.schema import Document
 
 app = Flask(__name__)
 CORS(app)
 
 load_dotenv()
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=100
-)
-
 doc_url = os.getenv("doc_url")
-
-
 response = requests.get(doc_url)
 
+# Load document content
 if response.status_code == 200:
     document_content = response.text
     print("Document content retrieved successfully.")
 else:
     print("Failed to retrieve document content. Status code:", response.status_code)
 
-documents = [Document(page_content=document_content)]
+# Embed document
+embedder = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+document_embeddings = embedder.encode([document_content])
 
-docs = text_splitter.split_documents(documents)
+# Initialize FAISS
+index = faiss.IndexFlatL2(document_embeddings.shape[1])
+index.add(document_embeddings)
 
-# Initialize embedding model and vector store
-embedding_model = HuggingFaceEmbeddings(model_name='paraphrase-MiniLM-L6-v2')
-vectorstore = FAISS.from_documents(docs, embedding_model)
-
-# Initialize Cohere client
+# Initialize Cohere
 cohere_api_key = os.getenv("CO_API_KEY")
 co = cohere.Client(cohere_api_key)
 
@@ -54,31 +45,26 @@ def cohere_generate(prompt):
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
-def search_with_langchain(query):
-    # Search in FAISS vector store
-    docs = vectorstore.similarity_search(query)
-    if docs:
-        context = " ".join([doc.page_content for doc in docs])
+def search_with_faiss(query):
+    query_embedding = embedder.encode([query])
+    D, I = index.search(query_embedding, k=1)  # Fetch closest match
+    if len(I) > 0 and D[0][0] < 0.5:
+        context = document_content
         prompt = f"""
-Your name is B4, and you are a helpful and concise assistant for Users in our plateform Core Capital. You must answer their question . 
-
+Your name is B4, and you are a helpful and concise assistant for Users in our platform Core Capital. You must answer their question. 
 
 Context: {context}
 Question: {query}
 Answer:
 """
-
-        # Generate response with Cohere
-        response = cohere_generate(prompt)
-    else:
-        response = "No relevant information found."
-    return response
+        return cohere_generate(prompt)
+    return "No relevant information found."
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    query = request.json.get("message")  # Get the question 
+    query = request.json.get("message")
     if query:
-        bot_response = search_with_langchain(query)
+        bot_response = search_with_faiss(query)
         return jsonify({"response": str(bot_response)})
     return jsonify({"error": "No message received"}), 400
 
