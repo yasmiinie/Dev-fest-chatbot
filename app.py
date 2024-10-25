@@ -61,7 +61,7 @@ def search_with_langchain(query):
         context = " ".join([doc.page_content for doc in docs])
         prompt = f"""
 Your name is B4, and you are a helpful and concise assistant for Users in our plateform Core Capital. You must answer their question . 
-Do not add extra details or unrelated information.
+
 
 Context: {context}
 Question: {query}
