@@ -1,5 +1,5 @@
 cohere
-sentence_transformers
-faiss-cpu
 flask
-flask_cors
+flask-cors
+python-dotenv
+requests
