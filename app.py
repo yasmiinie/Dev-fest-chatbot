@@ -35,8 +35,18 @@ def search_and_generate_response(query):
     
     # Basic similarity check to find relevant content
     best_doc = max(doc_embeddings, key=lambda d: sum(a * b for a, b in zip(d, query_embedding)))
-    
-    prompt = f"Context: {best_doc}\nQuestion: {query}\nAnswer:"
+    prompt = f"""
+Your name is B4, and you are a helpful and concise assistant for users who wants to use our plateform Core Capital. 
+You must answer their question **strictly based on the context provided**. 
+Do not add extra details or unrelated information. 
+Keep your response factual and to the point. 
+And if you don't know the answer, respond with: sorry I don't know.
+
+Context: {best_doc}
+Question: {query}
+Answer:
+"""
+
     response = co.generate(model="command-xlarge-nightly", prompt=prompt, max_tokens=200)
     return response.generations[0].text.strip()
 
