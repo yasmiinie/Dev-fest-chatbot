@@ -4,3 +4,4 @@ sentence_transformers
 tf-keras
 faiss-cpu
 flask
+flask_cors
