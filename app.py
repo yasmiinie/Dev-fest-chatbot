@@ -18,6 +18,11 @@ if response.status_code == 200:
 else:
     document_content = "Error: Document not found."
 
+#solit into chunks
+chunk_size = 500
+chunks = [document_content[i:i + chunk_size] for i in range(0, len(document_content), chunk_size)]
+
+
 # Initialize Cohere client
 cohere_api_key = os.getenv("CO_API_KEY")
 co = cohere.Client(cohere_api_key)
@@ -27,22 +32,25 @@ def generate_embeddings(texts):
     return response.embeddings
 
 # Embed document content and store
-documents = [document_content]
-doc_embeddings = generate_embeddings(documents)
+doc_embeddings = generate_embeddings(chunks)
+
 
 def search_and_generate_response(query):
     query_embedding = generate_embeddings([query])[0]
     
     # Basic similarity check to find relevant content
-    best_doc = max(doc_embeddings, key=lambda d: sum(a * b for a, b in zip(d, query_embedding)))
+    best_chunk, best_score = None, -1
+    for chunk, doc_embedding in zip(chunks, doc_embeddings):
+        score = sum(a * b for a, b in zip(doc_embedding, query_embedding))
+        if score > best_score:
+            best_chunk, best_score = chunk, score
     prompt = f"""
-Your name is B4, and you are a helpful and concise assistant for users who wants to use our plateform Core Capital. 
-You must answer their question **strictly based on the context provided**. 
+Your name is B4, and you are a helpful and concise assistant for users who wants to use our plateform Core Capital. You must answer their question **strictly based on the context provided in the chunk**. 
 Do not add extra details or unrelated information. 
 Keep your response factual and to the point. 
 And if you don't know the answer, respond with: sorry I don't know.
 
-Context: {best_doc}
+Context: {best_chunk}
 Question: {query}
 Answer:
 """
